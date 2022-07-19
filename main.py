@@ -2,24 +2,65 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.optim as optim
 import os.path
 import hotEncoding as hE
 
+N_EPOCHS = 100000
+
+class Model(nn.Module):
+    def __init__(self, numInFeatures):
+        super(Model, self).__init__()
+        self.hidden_layer = nn.Linear(numInFeatures, 6)
+        self.hidden_activation = nn.Tanh()
+        self.output_linear = nn.Linear(6, 1)
+
+    def forward(self, input):
+        hidden_t = self.hidden_layer(input)
+        activated_t = self.hidden_activation(hidden_t)
+        output_t = self.output_linear(activated_t)
+        return output_t
+
 
 def main():
-    if os.path.exists("data/adultEncoded.npy"):
-        adultData = np.load("data/adultEncoded.npy")
+    trainData = loadData("adultEncoded.npy", "adult.data")
+    testData = loadData("testEncoded.npy", "adult.test")
+
+    trainTensor = torch.from_numpy(trainData)
+    testTensor = torch.from_numpy(testData)
+    normalizeTensor(trainTensor)
+    normalizeTensor(testTensor)
+
+    t_inp_train = trainTensor[:, 0: trainTensor.shape[1]-1]
+    t_inp_test = testTensor[:, 0: trainTensor.shape[1]-1]
+
+    t_res_train = trainTensor[:, trainTensor.shape[1]-1]
+    t_res_val = testTensor[:, trainTensor.shape[1]-1]
+    t_res_train = t_res_train.unsqueeze(1)
+    t_res_val = t_res_val.unsqueeze(1)
+
+    print(t_inp_train, t_inp_train.shape)
+    print(t_inp_test, t_inp_test.shape)
+    print(t_res_train, t_res_train.shape)
+    print(t_res_val, t_res_val.shape)
+
+    model = Model(t_inp_train.shape[1])
+    optimizer = optim.SGD(model.parameters(), lr=1e-2)
+    trainingLoop(n_epochs=N_EPOCHS, optimizer=optimizer, model=model, loss_fn=nn.MSELoss(
+    ), t_inp_train=t_inp_train, t_inp_val=t_inp_test, t_res_val=t_res_val, t_res_train=t_res_train)
+
+
+def loadData(nameNpyFile, nameFileData):
+    if os.path.exists("data/"+nameNpyFile):
+        adultData = np.load("data/"+nameNpyFile)
     else:
-        adultData = loadData()
-        np.save("data/adultEncoded.npy", adultData)
-
-    adultTensor = torch.from_numpy(adultData)
-    normalizeTensor(adultTensor)
-    print(adultTensor, adultTensor.shape)
+        adultData = loadDataFromFile(nameFileData)
+        np.save("data/"+nameNpyFile, adultData)
+    return adultData
 
 
-def loadData():
-    adultData = np.genfromtxt("data/adult.data", delimiter=", ", dtype="S")
+def loadDataFromFile(nameFile):
+    adultData = np.genfromtxt("data/"+nameFile, delimiter=", ", dtype="S")
     adultData = mapWords(adultData)
     adultData = hE.generateHotEncoding(adultData)
 
@@ -30,10 +71,11 @@ def loadData():
 
 def normalizeTensor(adultData):
     n_channels = adultData.shape[1]
-    for i in range(0, n_channels):
-        mean = torch.mean(adultData[i, :])
-        std = torch.std(adultData[i, :])
-        adultData[i, :] = (adultData[i, :] - mean) / std
+    for i in range(0, n_channels-1):
+        #-1 because we don't want to normalize the resulta that is already 0 or 1
+        mean = torch.mean(adultData[:, i])
+        std = torch.std(adultData[:, i])
+        adultData[:, i] = (adultData[:, i] - mean) / std
 
 
 def mapWords(adultData):
@@ -68,9 +110,22 @@ def mapWords(adultData):
     return adultData
 
 
-def trainingLoop(n_epochs, optimizer, model, loss_fn, t_u_train, t_u_val, t_c_train, t_c_val):
+def trainingLoop(n_epochs, optimizer, model, loss_fn, t_inp_train, t_inp_val, t_res_train, t_res_val):
     for epoch in range(1, n_epochs+1):
-        t_p
+        t_p_train = model(t_inp_train)
+        loss_train = loss_fn(t_p_train, t_res_train)
 
+        t_p_val = model(t_inp_val)
+        loss_val = loss_fn(t_p_val, t_res_val)
+
+        optimizer.zero_grad()
+        loss_train.backward()
+        optimizer.step()
+
+        if epoch == 1 or epoch % 1000 == 0:
+            print("Epoch {}, Training loss {}, Validation loss {},".format(
+                epoch, float(loss_train), float(loss_val)))
+
+    torch.save(model.state_dict(), 'model/model.pth')
 
 main()
