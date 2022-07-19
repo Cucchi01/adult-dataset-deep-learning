@@ -73,7 +73,6 @@ def loadDataFromFile(nameFile):
     return adultData
 
 
-#TODO: make the normalization working
 def normalizeTensor(adultData):
     n_channels = adultData.shape[1]
     for i in range(0, n_channels-1):
