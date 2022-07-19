@@ -6,14 +6,17 @@ import torch.optim as optim
 import os.path
 import hotEncoding as hE
 
-N_EPOCHS = 100000
+N_EPOCHS = 5000
+LR = 1e-3
+
 
 class Model(nn.Module):
     def __init__(self, numInFeatures):
         super(Model, self).__init__()
-        self.hidden_layer = nn.Linear(numInFeatures, 6)
+        self.hidden_layer = nn.Linear(numInFeatures, 17)
         self.hidden_activation = nn.Tanh()
-        self.output_linear = nn.Linear(6, 1)
+        self.output_linear = nn.Linear(17, 1)
+        torch.nn.init.normal_(self.output_linear.weight, mean=0, std=1e-9)
 
     def forward(self, input):
         hidden_t = self.hidden_layer(input)
@@ -28,8 +31,9 @@ def main():
 
     trainTensor = torch.from_numpy(trainData)
     testTensor = torch.from_numpy(testData)
-    normalizeTensor(trainTensor)
-    normalizeTensor(testTensor)
+    print(trainTensor[0])
+    # normalizeTensor(trainTensor)
+    # normalizeTensor(testTensor)
 
     t_inp_train = trainTensor[:, 0: trainTensor.shape[1]-1]
     t_inp_test = testTensor[:, 0: trainTensor.shape[1]-1]
@@ -45,7 +49,7 @@ def main():
     print(t_res_val, t_res_val.shape)
 
     model = Model(t_inp_train.shape[1])
-    optimizer = optim.SGD(model.parameters(), lr=1e-2)
+    optimizer = optim.Adam(model.parameters(), lr=LR)
     trainingLoop(n_epochs=N_EPOCHS, optimizer=optimizer, model=model, loss_fn=nn.MSELoss(
     ), t_inp_train=t_inp_train, t_inp_val=t_inp_test, t_res_val=t_res_val, t_res_train=t_res_train)
 
@@ -72,10 +76,10 @@ def loadDataFromFile(nameFile):
 def normalizeTensor(adultData):
     n_channels = adultData.shape[1]
     for i in range(0, n_channels-1):
-        #-1 because we don't want to normalize the resulta that is already 0 or 1
-        mean = torch.mean(adultData[:, i])
-        std = torch.std(adultData[:, i])
-        adultData[:, i] = (adultData[:, i] - mean) / std
+        # -1 because we don't want to normalize the resulta that is already 0 or 1
+        min = torch.min(adultData[:, i])
+        max = torch.max(adultData[:, i])
+        adultData[:, i] = (adultData[:, i] - min) / max
 
 
 def mapWords(adultData):
@@ -111,6 +115,8 @@ def mapWords(adultData):
 
 
 def trainingLoop(n_epochs, optimizer, model, loss_fn, t_inp_train, t_inp_val, t_res_train, t_res_val):
+
+    print('hidden', model.hidden_layer.weight)
     for epoch in range(1, n_epochs+1):
         t_p_train = model(t_inp_train)
         loss_train = loss_fn(t_p_train, t_res_train)
@@ -122,10 +128,16 @@ def trainingLoop(n_epochs, optimizer, model, loss_fn, t_inp_train, t_inp_val, t_
         loss_train.backward()
         optimizer.step()
 
-        if epoch == 1 or epoch % 1000 == 0:
+        if epoch == 1 or epoch % 200 == 0:
+
+            #print('hidden', model.hidden_layer.weight)
             print("Epoch {}, Training loss {}, Validation loss {},".format(
-                epoch, float(loss_train), float(loss_val)))
+              epoch, float(loss_train), float(loss_val)))
 
     torch.save(model.state_dict(), 'model/model.pth')
+    print('ouput', model(t_inp_train))
+    print('answer', t_res_train)
+    # print('hidden', model.hidden_layer.weight.grad)
+
 
 main()
