@@ -6,8 +6,8 @@ import torch.optim as optim
 import os.path
 import hotEncoding as hE
 
-N_EPOCHS = 5000
-LR = 1e-3
+N_EPOCHS = 120
+LR = 5e-4
 
 
 class Model(nn.Module):
@@ -32,8 +32,8 @@ def main():
     trainTensor = torch.from_numpy(trainData)
     testTensor = torch.from_numpy(testData)
     print(trainTensor[0])
-    # normalizeTensor(trainTensor)
-    # normalizeTensor(testTensor)
+    normalizeTensor(trainTensor)
+    normalizeTensor(testTensor)
 
     t_inp_train = trainTensor[:, 0: trainTensor.shape[1]-1]
     t_inp_test = testTensor[:, 0: trainTensor.shape[1]-1]
@@ -73,13 +73,16 @@ def loadDataFromFile(nameFile):
     return adultData
 
 
+#TODO: make the normalization working
 def normalizeTensor(adultData):
     n_channels = adultData.shape[1]
     for i in range(0, n_channels-1):
         # -1 because we don't want to normalize the resulta that is already 0 or 1
-        min = torch.min(adultData[:, i])
+        
         max = torch.max(adultData[:, i])
-        adultData[:, i] = (adultData[:, i] - min) / max
+        if max > 1e-8:
+            min = torch.min(adultData[:, i])
+            adultData[:, i] = (adultData[:, i] - min) / max
 
 
 def mapWords(adultData):
@@ -115,8 +118,6 @@ def mapWords(adultData):
 
 
 def trainingLoop(n_epochs, optimizer, model, loss_fn, t_inp_train, t_inp_val, t_res_train, t_res_val):
-
-    print('hidden', model.hidden_layer.weight)
     for epoch in range(1, n_epochs+1):
         t_p_train = model(t_inp_train)
         loss_train = loss_fn(t_p_train, t_res_train)
@@ -128,13 +129,13 @@ def trainingLoop(n_epochs, optimizer, model, loss_fn, t_inp_train, t_inp_val, t_
         loss_train.backward()
         optimizer.step()
 
-        if epoch == 1 or epoch % 200 == 0:
-
-            #print('hidden', model.hidden_layer.weight)
+        if epoch == 1 or epoch % 10 == 0:
             print("Epoch {}, Training loss {}, Validation loss {},".format(
               epoch, float(loss_train), float(loss_val)))
 
     torch.save(model.state_dict(), 'model/model.pth')
+    
+    #TODO: make the output either 0 or 1 and confront
     print('ouput', model(t_inp_train))
     print('answer', t_res_train)
     # print('hidden', model.hidden_layer.weight.grad)
