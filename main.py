@@ -1,5 +1,7 @@
 import numpy as np
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
 import os.path
 import hotEncoding as hE
 
@@ -11,7 +13,9 @@ def main():
         adultData = loadData()
         np.save("data/adultEncoded.npy", adultData)
 
-    print(adultData)
+    adultTensor = torch.from_numpy(adultData)
+    normalizeTensor(adultTensor)
+    print(adultTensor, adultTensor.shape)
 
 
 def loadData():
@@ -22,6 +26,14 @@ def loadData():
     adultData = adultData.astype(dtype=np.float32)
 
     return adultData
+
+
+def normalizeTensor(adultData):
+    n_channels = adultData.shape[1]
+    for i in range(0, n_channels):
+        mean = torch.mean(adultData[i, :])
+        std = torch.std(adultData[i, :])
+        adultData[i, :] = (adultData[i, :] - mean) / std
 
 
 def mapWords(adultData):
@@ -54,6 +66,11 @@ def mapWords(adultData):
         row[14] = mapIncome2Int[row[14]]
 
     return adultData
+
+
+def trainingLoop(n_epochs, optimizer, model, loss_fn, t_u_train, t_u_val, t_c_train, t_c_val):
+    for epoch in range(1, n_epochs+1):
+        t_p
 
 
 main()
