@@ -15,9 +15,26 @@
 
 
 import numpy as np
+import copy
 
-LIST_NAMES_FEATURE = ["age", "workclass", "fnlwgt", "education", "education-num", "marital-status", "occupation",
-                      "relationship", "race", "sex", "capital-gain", "capital-loss", "hours-per-week", "native-country", "income"]
+LIST_NAMES_FEATURE = [b"age", b"workclass", b"fnlwgt", b"education", b"education-num", b"marital-status", b"occupation",
+                      b"relationship", b"race", b"sex", b"capital-gain", b"capital-loss", b"hours-per-week", b"native-country", b"income"]
+
+POSSIBLEVALUESFORFEATURE = {
+    b"sex": [b"Female", b"Male", b"?"],
+    b"workclass": [b"Private", b"Self-emp-not-inc", b"Self-emp-inc",
+                  b"Federal-gov", b"Local-gov", b"State-gov", b"Without-pay", b"Never-worked", b"?"],
+    b"marital-status": [b"Married-civ-spouse", b"Divorced", b"Never-married",
+                       b"Separated", b"Widowed", b"Married-spouse-absent", b"Married-AF-spouse", b"?"],
+    b"occupation": [b"Tech-support", b"Craft-repair", b"Other-service", b"Sales", b"Exec-managerial", b"Prof-specialty", b"Handlers-cleaners",
+                   b"Machine-op-inspct", b"Adm-clerical", b"Farming-fishing", b"Transport-moving", b"Priv-house-serv", b"Protective-serv", b"Armed-Forces", b"?"],
+    b"relationship": [b"Wife", b"Own-child", b"Husband",
+                     b"Not-in-family", b"Other-relative", b"Unmarried", b"?"],
+    b"race": [b"White", b"Asian-Pac-Islander",
+             b"Amer-Indian-Eskimo", b"Other", b"Black", b"?"],
+    b"native-country": [b"United-States", b"Cambodia", b"England", b"Puerto-Rico", b"Canada", b"Germany", b"Outlying-US(Guam-USVI-etc)", b"India", b"Japan", b"Greece", b"South", b"China", b"Cuba", b"Iran", b"Honduras", b"Philippines", b"Italy", b"Poland", b"Jamaica", b"Vietnam", b"Mexico",
+                       b"Portugal", b"Ireland", b"France", b"Dominican-Republic", b"Laos", b"Ecuador", b"Taiwan", b"Haiti", b"Columbia", b"Hungary", b"Guatemala", b"Nicaragua", b"Scotland", b"Thailand", b"Yugoslavia", b"El-Salvador", b"Trinadad&Tobago", b"Peru", b"Hong", b"Holand-Netherlands", b"?"]
+}
 
 
 class HotEncoding(object):
@@ -47,28 +64,33 @@ class HotEncoding(object):
         return endPosFeature
 
 
-def generateHotEncoding(adultData):
-    possibleValuesForFeature = {
-        "sex": [b"Female", b"Male", b"?"],
-        "workclass": [b"Private", b"Self-emp-not-inc", b"Self-emp-inc",
-                      b"Federal-gov", b"Local-gov", b"State-gov", b"Without-pay", b"Never-worked", b"?"],
-        "marital-status": [b"Married-civ-spouse", b"Divorced", b"Never-married",
-                           b"Separated", b"Widowed", b"Married-spouse-absent", b"Married-AF-spouse", b"?"],
-        "occupation": [b"Tech-support", b"Craft-repair", b"Other-service", b"Sales", b"Exec-managerial", b"Prof-specialty", b"Handlers-cleaners",
-                       b"Machine-op-inspct", b"Adm-clerical", b"Farming-fishing", b"Transport-moving", b"Priv-house-serv", b"Protective-serv", b"Armed-Forces", b"?"],
-        "relationship": [b"Wife", b"Own-child", b"Husband",
-                         b"Not-in-family", b"Other-relative", b"Unmarried", b"?"],
-        "race": [b"White", b"Asian-Pac-Islander",
-                 b"Amer-Indian-Eskimo", b"Other", b"Black", b"?"],
-        "native-country": [b"United-States", b"Cambodia", b"England", b"Puerto-Rico", b"Canada", b"Germany", b"Outlying-US(Guam-USVI-etc)", b"India", b"Japan", b"Greece", b"South", b"China", b"Cuba", b"Iran", b"Honduras", b"Philippines", b"Italy", b"Poland", b"Jamaica", b"Vietnam", b"Mexico",
-                           b"Portugal", b"Ireland", b"France", b"Dominican-Republic", b"Laos", b"Ecuador", b"Taiwan", b"Haiti", b"Columbia", b"Hungary", b"Guatemala", b"Nicaragua", b"Scotland", b"Thailand", b"Yugoslavia", b"El-Salvador", b"Trinadad&Tobago", b"Peru", b"Hong", b"Holand-Netherlands", b"?"]
-    }
+def getListFeatureAfterHotEnc():
+    namesFeatures = copy.copy(LIST_NAMES_FEATURE)
+    encodedFeatures = POSSIBLEVALUESFORFEATURE.keys()
+    listAfterEncFeatures = []
+    for i in range(0, len(namesFeatures)):
 
-    dictHotEncoding = generateEncodings(possibleValuesForFeature)
+        if namesFeatures[i] in encodedFeatures:
+            
+            #associate every ? to the original feature
+            possibleValues = copy.copy(POSSIBLEVALUESFORFEATURE[namesFeatures[i]])            
+            for k in range(0, len(possibleValues)):
+                if possibleValues[k] == b"?":
+                    possibleValues[k] = b"? "+ namesFeatures[i] 
+            
+            listAfterEncFeatures += possibleValues
+        else:
+            listAfterEncFeatures.append(namesFeatures[i]) 
+
+    
+    return listAfterEncFeatures
+
+def generateHotEncoding(adultData):
+    dictHotEncoding = generateEncodings(POSSIBLEVALUESFORFEATURE)
     newNumberOfColumns = getNewNumCol(dictHotEncoding, adultData)
 
     newAdultData = generateNewTensor(
-        adultData, newNumberOfColumns, possibleValuesForFeature, dictHotEncoding)
+        adultData, newNumberOfColumns, POSSIBLEVALUESFORFEATURE, dictHotEncoding)
     del adultData
     adultData = newAdultData
 
