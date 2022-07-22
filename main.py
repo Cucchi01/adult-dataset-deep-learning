@@ -7,8 +7,8 @@ import hotEncoding as hE
 import pandas as pd
 import matplotlib.pyplot as plt
 
-N_EPOCHS = 10000
-#With the value at false first it checks if there is already a model to load
+N_EPOCHS = 5000
+# With the value at false first it checks if there is already a model to load
 FORCE_GENERATION_NEW_MODEL = False
 LR = 1e-3
 
@@ -37,7 +37,28 @@ def main():
     model = getModel(TensorInputForTraining, TensorOutputForTraining, TensorInputForTest,
                      TensorOutputForTest, nameModelFile='model.pth')
 
-    printStatsModel(model, TensorInputForTest, TensorOutputForTest)
+    outputStatsModel(model, TensorInputForTest,
+                     TensorOutputForTest, saveHidWeightsToFileFlag=True)
+
+
+def generateTensorForTraining():
+    trainData = loadData("adultEncoded.npy", "adult.data")
+    testData = loadData("testEncoded.npy", "adult.test")
+
+    trainTensor = torch.from_numpy(trainData)
+    testTensor = torch.from_numpy(testData)
+    normalizeTensor(trainTensor)
+    normalizeTensor(testTensor)
+
+    TensorInputForTraining = trainTensor[:, 0: trainTensor.shape[1]-1]
+    TensorInputForTest = testTensor[:, 0: trainTensor.shape[1]-1]
+
+    TensorResForTraining = trainTensor[:, trainTensor.shape[1]-1]
+    TensorResForTest = testTensor[:, trainTensor.shape[1]-1]
+    TensorResForTraining = TensorResForTraining.unsqueeze(1)
+    TensorResForTest = TensorResForTest.unsqueeze(1)
+
+    return (TensorInputForTraining, TensorResForTraining, TensorInputForTest, TensorResForTest)
 
 
 def getModel(TensorInputForTraining, TensorOutputForTraining, TensorInputForTest,
@@ -53,25 +74,13 @@ def getModel(TensorInputForTraining, TensorOutputForTraining, TensorInputForTest
     return model
 
 
-def generateTensorForTraining():
-    trainData = loadData("adultEncoded.npy", "adult.data")
-    testData = loadData("testEncoded.npy", "adult.test")
-
-    trainTensor = torch.from_numpy(trainData)
-    testTensor = torch.from_numpy(testData)
-    print(trainTensor[0])
-    normalizeTensor(trainTensor)
-    normalizeTensor(testTensor)
-
-    TensorInputForTraining = trainTensor[:, 0: trainTensor.shape[1]-1]
-    TensorInputForTest = testTensor[:, 0: trainTensor.shape[1]-1]
-
-    TensorResForTraining = trainTensor[:, trainTensor.shape[1]-1]
-    TensorResForTest = testTensor[:, trainTensor.shape[1]-1]
-    TensorResForTraining = TensorResForTraining.unsqueeze(1)
-    TensorResForTest = TensorResForTest.unsqueeze(1)
-
-    return (TensorInputForTraining, TensorResForTraining, TensorInputForTest, TensorResForTest)
+def loadData(nameNpyFile, nameFileData):
+    if os.path.exists("data/"+nameNpyFile):
+        adultData = np.load("data/"+nameNpyFile)
+    else:
+        adultData = loadDataFromFile(nameFileData)
+        np.save("data/"+nameNpyFile, adultData)
+    return adultData
 
 
 def normalizeTensor(adultData):
@@ -96,7 +105,7 @@ def generateModel(TensorInputForTraining, TensorOutputForTraining, TensorInputFo
     return model
 
 
-def printStatsModel(model, TensorInputForTest, TensorOutputForTest, flagPrintTensor=False):
+def outputStatsModel(model, TensorInputForTest, TensorOutputForTest, flagPrintTensor=False, saveHidWeightsToFileFlag=True):
     if flagPrintTensor:
         print('Actual answer', TensorOutputForTest)
         print('Ouput Model:', model(TensorInputForTest))
@@ -114,6 +123,21 @@ def printStatsModel(model, TensorInputForTest, TensorOutputForTest, flagPrintTen
     if flagPrintTensor:
         print('Ouput model ', outputTensor)
 
+    output = list(zip(outputTensor, TensorOutputForTest))
+    over50KOutput = []
+    under50KOutput = []
+    numDiffUnder = 0
+    numDiffOver = 0
+    for singleOutput in output:
+        if singleOutput[1] == 1:
+            over50KOutput.append(singleOutput)
+            if singleOutput[0] == 0:
+                numDiffOver += 1
+        else:
+            under50KOutput.append(singleOutput)
+            if singleOutput[0] == 1:
+                numDiffUnder += 1
+
     diffTensor = outputTensor-TensorOutputForTest
     diffTensor = torch.abs(diffTensor)
     numWrongPrediction = int(torch.sum(diffTensor))
@@ -124,21 +148,31 @@ def printStatsModel(model, TensorInputForTest, TensorOutputForTest, flagPrintTen
     print("Number of wrong predictions: ", numWrongPrediction)
     print("Percentage of correct predictions: ",
           (numPredictions-numWrongPrediction)/numPredictions*100)
+    print("Percentage of correct predictions over 50K: ",
+          (1 - numDiffOver/len(over50KOutput))*100)
+    print("Percentage of correct predictions under 50K: ",
+          (1 - numDiffUnder/len(under50KOutput))*100)
 
     listFeature = hE.getListFeatureAfterHotEnc()
-    #remove "income" from the list 
+    # remove "income" from the list
     listFeature.pop()
     hiddenLayerWeights = model.hidden_layer.weight.data.tolist()[0]
-    weightPerFeature = list(zip(listFeature, hiddenLayerWeights))   
-    print('Hidden layer weights: ', weightPerFeature)
+    weightPerFeature = list(zip(listFeature, hiddenLayerWeights))
+    weightPerFeature.sort(key=lambda row: row[1], reverse=True)
+    if saveHidWeightsToFileFlag:
+        saveHiddenWeightsToFile(weightPerFeature)
 
-def loadData(nameNpyFile, nameFileData):
-    if os.path.exists("data/"+nameNpyFile):
-        adultData = np.load("data/"+nameNpyFile)
-    else:
-        adultData = loadDataFromFile(nameFileData)
-        np.save("data/"+nameNpyFile, adultData)
-    return adultData
+
+def saveHiddenWeightsToFile(weightPerFeature):
+    try:
+        fw = open("results/weightPerFeature.txt", "w")
+        for row in weightPerFeature:
+            fw.write("Feature: %-30s Weight: %3.5f\n" %
+                     (row[0].decode('UTF-8'), row[1]))
+
+        fw.close()
+    except IOError:
+        print("Error writing the weights of the hidden layer to file")
 
 
 def loadDataFromFile(nameFile):
